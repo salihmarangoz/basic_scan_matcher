@@ -3,12 +3,12 @@
 <launch>
     <param name="use_sim_time" value="true"/>
 
-    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find basic_scan_ matcher)/launch/rviz.rviz"/>
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find basic_scan_matcher)/launch/rviz.rviz"/>
 
-    <node name="rosbag" pkg="rosbag" type="play" args="$(find basic_scan_ matcher)/launch/run1_without_tf.bag --clock -r 2"/>
+    <node name="rosbag" pkg="rosbag" type="play" args="$(find basic_scan_matcher)/launch/run1_without_tf.bag --clock -r 2"/>
 
-    <node name="basic_scan_ matcher" pkg="basic_scan_ matcher" type="scan_matcher.py" output="screen">
-            
+    <node name="basic_scan_matcher" pkg="basic_scan_matcher" type="scan_matcher.py" output="screen">
+
     </node>
 
 </launch>
