@@ -3,13 +3,19 @@
 import numpy as np
 from scipy.stats import norm
 import math
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.figure import Figure
+from PIL import Image
+
 import rospy
 from sensor_msgs.msg import LaserScan
 import tf
 
 class BeamSensorModelScanMatcher:
-    def __init__(self, angle_min, angle_increment, z_max, sigma, lambd, w_hit, w_unexp, w_max, w_rand):
+    def __init__(self, angle_min, angle_max, angle_increment, z_max, sigma, lambd, w_hit, w_unexp, w_max, w_rand):
         self.angle_min = angle_min
+        self.angle_max = angle_max
         self.angle_increment = angle_increment
         self.z_max = z_max
         self.sigma = sigma
@@ -19,18 +25,10 @@ class BeamSensorModelScanMatcher:
         self.w_max = w_max
         self.w_rand = w_rand
 
-    def scan_match(self, ref_z, z):
-        # convert to numpy array
-        np_ref_z = np.array(ref_z)
-        np_z = np.array(z)
-
-        # fix nan and inf values
-        np_ref_z[ np.isinf(np_ref_z) ] = self.z_max
-        np_ref_z[ np.isnan(np_ref_z) ] = self.z_max
-        np_z[ np.isinf(np_z) ] = self.z_max
-        np_z[ np.isnan(np_z) ] = self.z_max
-
-        print(self.beam_model(np_z, np_ref_z))
+        self.prec_angles = np.arange(angle_min, angle_max, angle_increment)
+        self.prec_sin = np.sin(self.prec_angles)
+        self.prec_cos = np.cos(self.prec_angles)
+        fig = plt.figure()
 
     def beam_model(self, z, z_exp):
         n = z.shape[0]
@@ -54,9 +52,72 @@ class BeamSensorModelScanMatcher:
         p_rand = p_rand/self.z_max
 
         # weighted sum of distributions
-        ws =  (p_hit * self.w_hit) + (p_unexp * self.w_unexp) + (p_max * self.w_max) + (p_rand * self.w_rand)
+        return (p_hit * self.w_hit) + (p_unexp * self.w_unexp) + (p_max * self.w_max) + (p_rand * self.w_rand)
 
-        return np.prod(ws)
+    def raster_map(self, ref_z):
+        # convert from polar to castesian
+        x = ref_z * self.prec_cos
+        y = ref_z * self.prec_sin
+
+        # split laser data into different groups based on value change
+        threshold = 0.2 # TODO
+        diff  = np.absolute(np.diff(ref_z))
+        split_idx = np.where(diff > threshold)[0] +1
+        x_split = np.split(x, split_idx)
+        y_split = np.split(y, split_idx)
+
+        # calculte map size
+        map_resolution = 0.1 # TODO
+        map_size = int( 2*(self.z_max / map_resolution) )
+
+        # raster the map
+        fig = Figure(figsize=(map_size,map_size), dpi=1)
+        canvas = FigureCanvasAgg(fig)
+        ax = fig.gca()
+        ax.set_xlim(-self.z_max, self.z_max)
+        ax.set_ylim(-self.z_max, self.z_max)
+        ax.autoscale(False)
+        ax.axis('off')
+        ax.set_aspect("equal")
+        ax.margins(0)
+
+        for i,j in zip(x_split, y_split):
+            ax.plot(i, j, 'k', antialiased=False)
+
+        canvas.draw()
+        s, (width, height) = canvas.print_to_buffer()
+        s = np.array(s).reshape((height, width, -1))
+        s = np.min(s, axis=2) # convert rgba to binary
+
+        # DEBUG
+        #img = Image.fromarray(s)
+        #img.save('/home/salih/my.png')
+
+        #plt.imshow(s, interpolation="none", cmap='gray')
+        #plt.pause(0.0000001)
+
+        return s
+
+
+    def scan_match(self, ref_z, z):
+        # convert to numpy array
+        ref_z = np.array(ref_z)
+        z = np.array(z)
+
+        # fix nan and inf values
+        ref_z[ np.isinf(ref_z) ] = self.z_max
+        ref_z[ np.isnan(ref_z) ] = self.z_max
+        z[ np.isinf(z) ] = self.z_max
+        z[ np.isnan(z) ] = self.z_max
+
+        ref_map = self.raster_map(ref_z)
+
+        dx, dy, dtheta = 0.05, 0.05, self.angle_increment # TODO
+        new_x = 0.0
+        new_y = 0.0
+        new_theta = 0.0
+
+        print(np.prod(self.beam_model(z, ref_z)))
 
 
 class ScanMatcherROS:
@@ -82,7 +143,7 @@ class ScanMatcherROS:
     def laserscan_callback(self, data):
         # init scan matcher using first laser data
         if (self.z2 == None):
-            self.sm = BeamSensorModelScanMatcher(data.angle_min, data.angle_increment, data.range_max, self.sigma, self.lambd, self.w_hit, self.w_unexp, self.w_max, self.w_rand)
+            self.sm = BeamSensorModelScanMatcher(data.angle_min, data.angle_max, data.angle_increment, data.range_max, self.sigma, self.lambd, self.w_hit, self.w_unexp, self.w_max, self.w_rand)
             self.z2 = data
             return
 
@@ -91,10 +152,10 @@ class ScanMatcherROS:
 
         self.sm.scan_match(self.z1.ranges, self.z2.ranges)
         return
-        dx, dy, dtheta = self.sm.scan_match(self.z1.ranges, self.z2.ranges)
-        self.robot_x += dx
-        self.robot_y += dy
-        self.robot_theta += dtheta
+        Dx, Dy, Dtheta = self.sm.scan_match(self.z1.ranges, self.z2.ranges)
+        self.robot_x += Dx
+        self.robot_y += Dy
+        self.robot_theta += Dtheta
 
 
 smr = ScanMatcherROS()
