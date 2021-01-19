@@ -37,6 +37,8 @@ class ScanMatcherROS:
         mu_pc = np.mean(pc, axis=1).reshape(-1, 1)
         pc_normalized = pc - mu_pc
 
+        print(scan)
+
         #print(pc_normalized.shape) # (2, 271)
 
         # debug
@@ -55,7 +57,6 @@ class ScanMatcherROS:
             TR[:2,2] = T.T
             TR[:2,:2] = R
             print(TR)
-
 
             fixed = np.matmul(R, self.prev_pc - T)
             plt.plot(fixed[0], fixed[1], ".")
