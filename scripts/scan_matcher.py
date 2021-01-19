@@ -7,6 +7,26 @@ from sensor_msgs.msg import LaserScan
 import tf
 import matplotlib.pyplot as plt
 
+# one step optimization
+def scan_match_svd(pc1, pc2):
+    mu_pc1 = np.mean(pc1, axis=1)
+    mu_pc2 = np.mean(pc2, axis=1)
+    pc1_norm = pc1 - mu_pc1.reshape(-1, 1)
+    pc2_norm = pc2 - mu_pc2.reshape(-1, 1)
+    W = np.matmul(pc2_norm, pc1_norm.T)                         # calculate cross-covariance
+    u, s, v_T = np.linalg.svd(W, full_matrices=True)            # decompose using SVD
+
+    R = np.matmul(v_T.T, u.T)                                   # calculate rotation
+    pc3 = np.matmul(R, pc2)
+
+    T = mu_pc1 - np.matmul(R, mu_pc2)                           # calculate translation
+    pc4 = pc3 + T.reshape(-1, 1)
+
+    translation = np.matmul(T, R)                               # T @ R
+    rotation = np.arctan2(R[1,0], R[0,0])
+
+    return translation, rotation
+
 
 class ScanMatcherROS:
     def __init__(self):
@@ -36,10 +56,6 @@ class ScanMatcherROS:
         # Normalize point cloud
         mu_pc = np.mean(pc, axis=1).reshape(-1, 1)
         pc_normalized = pc - mu_pc
-
-        print(scan)
-
-        #print(pc_normalized.shape) # (2, 271)
 
         # debug
         plt.cla()
