@@ -1,52 +1,106 @@
 #!/usr/bin/env python
 
 import numpy as np
-import rospy
-from sensor_msgs.msg import LaserScan
-import tf
 import matplotlib.pyplot as plt
-import tf_conversions
-from tf import TransformBroadcaster
+from scipy.spatial import cKDTree
 
-def find_correspondences(pc1, pc2, T=[0,0], R=np.eye(2)):
+import rospy, tf, tf_conversions
+from sensor_msgs.msg import LaserScan
 
-    # todo
+debug = True
 
-    # filter nan values
-    nanmask1 = np.isnan(np.sum(pc1, axis=0))
-    nanmask2 = np.isnan(np.sum(pc2, axis=0))
-    mask = np.logical_or(nanmask1, nanmask2)
-    mask = np.logical_not(mask)
-    return pc1[:, mask], pc2[:, mask]
+class ScanMatcher:
+    def __init__(self):
+        self.pc_keyframe = None
+        self.pos_keyframe = None
 
-# one step optimization
-def scan_match_svd(pc1, pc2):
-    # normalize point clouds
-    mu_pc1 = np.mean(pc1, axis=1)
-    mu_pc2 = np.mean(pc2, axis=1)
-    pc1_norm = pc1 - mu_pc1.reshape(-1, 1)
-    pc2_norm = pc2 - mu_pc2.reshape(-1, 1)
 
-    W = np.matmul(pc2_norm, pc1_norm.T)                         # calculate cross-covariance
-    u, s, v_T = np.linalg.svd(W, full_matrices=True)            # decompose using SVD
+    def find_correspondences(self, pc1, pc2):
+        pc1 = pc1.copy()
+        pc2 = pc2.copy()
 
-    R = np.matmul(v_T.T, u.T)                                   # calculate rotation
-    pc3 = np.matmul(R, pc2) # debug
+        # filter nans
+        nanmask1 = np.isnan(np.sum(pc1, axis=0))
+        nanmask2 = np.isnan(np.sum(pc2, axis=0))
+        nanmask1 = np.logical_not(nanmask1)
+        nanmask2 = np.logical_not(nanmask2)
+        pc1 = pc1[:,nanmask1]
+        pc2 = pc2[:,nanmask2]
 
-    T = mu_pc1 - np.matmul(R, mu_pc2)                           # calculate translation
-    pc4 = pc3 + T.reshape(-1, 1) # debug
+        # construct correspondences
+        tree = cKDTree(pc1.T)
+        dd, ii = tree.query(pc2.T, k=1)
+        pc2_to_pc1 = np.array( list(enumerate(ii)) )   # [pc2_index, pc1_index]
 
-    translation = np.matmul(T, R)                               # T @ R
-    rotation = np.arctan2(R[1,0], R[0,0])
+        # remove concurrences, leave only 1-1 mappings
+        sort_mask = np.argsort(dd)
+        pc2_to_pc1 = pc2_to_pc1[sort_mask,:]
+        _, unique_mask = np.unique(pc2_to_pc1[:,1], return_index=True)
+        unique_pc2_to_pc1 = pc2_to_pc1[unique_mask]
 
-    # debug
-    plt.cla()
-    plt.scatter(pc1[0], pc1[1])
-    plt.scatter(pc4[0], pc4[1])
-    plt.gca().set_aspect('equal')
-    plt.pause(0.01)
+        pc2_cor = pc2[:, unique_pc2_to_pc1[:,0]]
+        pc1_cor = pc1[:, unique_pc2_to_pc1[:,1]]
 
-    return translation, rotation, T, R
+        return pc1_cor, pc2_cor
+
+
+    def align_svd(self, pc1, pc2):
+        # normalize point clouds
+        mu_pc1 = np.mean(pc1, axis=1)
+        mu_pc2 = np.mean(pc2, axis=1)
+        pc1_norm = pc1 - mu_pc1.reshape(-1, 1)
+        pc2_norm = pc2 - mu_pc2.reshape(-1, 1)
+        W = np.matmul(pc2_norm, pc1_norm.T)                         # calculate cross-covariance
+        u, s, v_T = np.linalg.svd(W, full_matrices=True)            # decompose using SVD
+
+        R = np.matmul(v_T.T, u.T)                                   # calculate rotation
+        T = mu_pc1 - np.matmul(R, mu_pc2)                           # calculate translation
+        
+        return T.reshape(-1,1), R
+
+
+    def calculate_odom(self, T, R):
+        translation = np.matmul(T.reshape(1, -1), R).flatten()
+        rotation = np.arctan2(R[1,0], R[0,0])
+        return np.array([translation[0], translation[1], rotation])
+
+
+    def match(self, pc1, pc2, max_iter):
+        R_acc = np.eye(2)
+        T_acc = np.zeros((2,1))
+
+        for t in range(max_iter):
+            pc1_cor, pc2_cor =  self.find_correspondences(pc1, np.matmul(R_acc, pc2) + T_acc)
+            T, R = self.align_svd(pc1_cor, pc2_cor)
+            R_acc = np.matmul(R, R_acc)
+            T_acc = T_acc + T
+
+        if debug:
+            pc3 = np.matmul(R_acc, pc2) + T_acc
+            _=plt.cla()
+            _=plt.plot(pc1[0], pc1[1], '.')
+            _=plt.plot(pc3[0], pc3[1], '.')
+            _=plt.gca().set_aspect('equal')
+            _=plt.pause(0.01)
+
+        return T_acc, R_acc
+
+
+    def process_scan(self, pc, max_iter=200):
+        if self.pc_keyframe is None:
+            self.pc_keyframe = pc.copy()
+            self.pos_keyframe = np.array([0., 0., 0.])
+            return self.pos_keyframe
+
+        T, R = self.match(self.pc_keyframe, pc, max_iter)
+        pos_diff = self.calculate_odom(T, R)
+        robot_pos = self.pos_keyframe + pos_diff
+
+        if np.linalg.norm(pos_diff[:2]) > 0.2 or pos_diff[2] > 0.1:
+            self.pos_keyframe = robot_pos
+            self.pc_keyframe = pc
+
+        return robot_pos # returns x, y, theta
 
 
 class ScanMatcherROS:
@@ -54,49 +108,49 @@ class ScanMatcherROS:
         self.robot_x = 0.0
         self.robot_y = 0.0
         self.robot_theta = 0.0
-        self.is_initialized = None
+        self.is_initialized = False
+        self.is_processing = False
+        self.scan_matcher = ScanMatcher()
 
         rospy.init_node('RosScanMatcher', anonymous=True)
-        self.sigma      = rospy.get_param('~sigma', 0.75) # todo
+        self.laser_frame = rospy.get_param('~laser_frame', "laser")
+        self.odom_frame = rospy.get_param('~odom_frame', "odom")
 
-
-    def start(self):
-        self.tf_pub = TransformBroadcaster()
-        self.laser_sub = rospy.Subscriber("scan", LaserScan, self.laserscan_callback, queue_size=1)
+        self.tf_pub = tf.TransformBroadcaster()
+        self.laser_sub = rospy.Subscriber("scan", LaserScan, self.laserscan_callback, queue_size=2)
 
 
     def publish_odom(self, x, y, theta, stamp):
         q = tf_conversions.transformations.quaternion_from_euler(0, 0, theta)
-        self.tf_pub.sendTransform((x,y,0.0), q, stamp, "laser", "odom")
+        self.tf_pub.sendTransform((x,y,0.0), q, stamp, self.laser_frame, self.odom_frame)
 
 
     def laserscan_callback(self, scan):
-        # Convert scan from polar to cartesian coordinate system
+        if self.is_processing:
+            print("Missed a laserscan!")
+            return
+        self.is_processing = True
+
+        # Cache sin & cos values
         if not self.is_initialized:
             self.cached_cos = np.cos( np.arange(scan.angle_min, scan.angle_max, scan.angle_increment))
             self.cached_sin = np.sin( np.arange(scan.angle_min, scan.angle_max, scan.angle_increment))
+            self.is_initialized = True
+
+        # Convert scan from polar to cartesian coordinate system
         pc_x = scan.ranges * self.cached_cos
         pc_y = scan.ranges * self.cached_sin
         pc = np.stack([pc_x, pc_y])
 
-        # process prev_scan and scan
-        if self.is_initialized:
-            prev_cor_pc, cor_pc = find_correspondences(self.prev_pc, pc)
-            translation, rotation, T, R = scan_match_svd(prev_cor_pc, cor_pc)
-            print(translation, rotation)
+        # Process scan
+        x, y, theta = self.scan_matcher.process_scan(pc)
 
-            # publish odom
-            self.robot_x += translation[0]
-            self.robot_y += translation[1]
-            self.robot_theta = (self.robot_theta + rotation + np.pi*2) % (np.pi*2)
-            self.publish_odom(self.robot_x, self.robot_y, self.robot_theta, scan.header.stamp)
+        # Publish odom
+        self.publish_odom(x, y, theta, scan.header.stamp)
 
-        self.prev_scan = scan
-        self.prev_pc = pc
-        self.is_initialized = True
+        self.is_processing = False
 
 
 smr = ScanMatcherROS()
-smr.start()
 while not rospy.is_shutdown():
     rospy.spin()

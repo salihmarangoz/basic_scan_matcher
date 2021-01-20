@@ -60,7 +60,7 @@ Visualization Manager:
       Radius: 0.10000000149011612
       Reference Frame: <Fixed Frame>
       Value: true
-    - Alpha: 0.5
+    - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
         Max Value: 0
@@ -124,7 +124,7 @@ Visualization Manager:
   Global Options:
     Background Color: 48; 48; 48
     Default Light: true
-    Fixed Frame: laser
+    Fixed Frame: odom
     Frame Rate: 60
   Name: root
   Tools:
@@ -147,21 +147,26 @@ Visualization Manager:
   Value: true
   Views:
     Current:
-      Angle: -0.03499998897314072
-      Class: rviz/TopDownOrtho
+      Class: rviz/XYOrbit
+      Distance: 19.401371002197266
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
+      Focal Point:
+        X: 3.0930016040802
+        Y: -0.34879040718078613
+        Z: 0
+      Focal Shape Fixed Size: true
+      Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Scale: 68.2894515991211
+      Pitch: 1.5397963523864746
       Target Frame: <Fixed Frame>
-      Value: TopDownOrtho (rviz)
-      X: 2.9112038612365723
-      Y: 1.1950966119766235
+      Value: XYOrbit (rviz)
+      Yaw: 4.565408229827881
     Saved: ~
 Window Geometry:
   Displays:
