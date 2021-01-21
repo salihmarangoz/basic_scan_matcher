@@ -5,7 +5,7 @@
 
     <node name="rviz" pkg="rviz" type="rviz" args="-d $(find basic_scan_matcher)/launch/rviz.rviz"/>
 
-    <node name="rosbag" pkg="rosbag" type="play" args="$(find basic_scan_matcher)/launch/run1_without_tf.bag --clock -r 2.0"/>
+    <node name="rosbag" pkg="rosbag" type="play" args="$(find basic_scan_matcher)/launch/example.bag --clock -r 2.0"/>
 
     <node name="basic_scan_matcher" pkg="basic_scan_matcher" type="scan_matcher.py" output="screen">
 
