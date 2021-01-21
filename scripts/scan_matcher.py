@@ -27,6 +27,8 @@ class ScanMatcher:
         pc1 = pc1[:,nanmask1]
         pc2 = pc2[:,nanmask2]
 
+        # TODO: sample from pointclouds based on density
+
         # construct correspondences
         tree = cKDTree(pc1.T)
         dd, ii = tree.query(pc2.T, k=1)
@@ -86,7 +88,7 @@ class ScanMatcher:
         return T_acc, R_acc
 
 
-    def process_scan(self, pc, max_iter=200):
+    def process_scan(self, pc, max_iter=50):
         # Initialize
         if self.pc_keyframe is None:
             self.pc_keyframe = pc.copy()
@@ -108,7 +110,7 @@ class ScanMatcher:
         robot_xy = global_T.flatten()
         robot_theta = np.arctan2(global_R[1,0], global_R[0,0])
 
-        if np.linalg.norm(translation_diff) > 0.2 or rotation_diff > 0.1:
+        if np.linalg.norm(translation_diff) > 0.1 or rotation_diff > 0.2:
             self.pc_keyframe = pc
             self.R_keyframe = global_R
             self.T_keyframe = global_T
@@ -130,7 +132,7 @@ class ScanMatcherROS:
         self.odom_frame = rospy.get_param('~odom_frame', "odom")
 
         self.tf_pub = tf.TransformBroadcaster()
-        self.laser_sub = rospy.Subscriber("scan", LaserScan, self.laserscan_callback, queue_size=2)
+        self.laser_sub = rospy.Subscriber("scan", LaserScan, self.laserscan_callback, queue_size=1)
 
 
     def publish_odom(self, x, y, theta, stamp):
@@ -140,7 +142,7 @@ class ScanMatcherROS:
 
     def laserscan_callback(self, scan):
         if self.is_processing:
-            print("Missed a laserscan!")
+            rospy.logwarn("Missed a laserscan!")
             return
         self.is_processing = True
 
