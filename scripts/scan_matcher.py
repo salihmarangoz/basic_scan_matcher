@@ -7,7 +7,7 @@ from scipy.spatial import cKDTree
 import rospy, tf, tf_conversions
 from sensor_msgs.msg import LaserScan
 
-debug = True
+debug = False
 
 class ScanMatcher:
     def __init__(self):
@@ -54,13 +54,13 @@ class ScanMatcher:
         u, s, v_T = np.linalg.svd(W, full_matrices=True)            # decompose using SVD
 
         R = np.matmul(v_T.T, u.T)                                   # calculate rotation
-        T = mu_pc1 - np.matmul(R, mu_pc2)                           # calculate translation
-        
+        T = mu_pc1 - np.matmul(R, mu_pc2)                          # calculate translation
+
         return T.reshape(-1,1), R
 
 
     def calculate_odom(self, T, R):
-        translation = np.matmul(T.reshape(1, -1), R).flatten()
+        translation = T.flatten()
         rotation = np.arctan2(R[1,0], R[0,0])
         return np.array([translation[0], translation[1], rotation])
 
@@ -76,10 +76,10 @@ class ScanMatcher:
             T_acc = T_acc + T
 
         if debug:
-            pc3 = np.matmul(R_acc, pc2) + T_acc
+            #pc3 = np.matmul(R_acc, pc2) + T_acc
             _=plt.cla()
-            _=plt.plot(pc1[0], pc1[1], '.')
-            _=plt.plot(pc3[0], pc3[1], '.')
+            _=plt.plot(pc1_cor[0], pc1_cor[1], '.')
+            _=plt.plot(pc2_cor[0], pc2_cor[1], '.')
             _=plt.gca().set_aspect('equal')
             _=plt.pause(0.01)
 
@@ -87,20 +87,33 @@ class ScanMatcher:
 
 
     def process_scan(self, pc, max_iter=200):
+        # Initialize
         if self.pc_keyframe is None:
             self.pc_keyframe = pc.copy()
-            self.pos_keyframe = np.array([0., 0., 0.])
-            return self.pos_keyframe
+            self.R_keyframe = np.eye(2)
+            self.T_keyframe = np.zeros((2,1))
 
+            return [0., 0., 0.]
+
+        # Scan matching
         T, R = self.match(self.pc_keyframe, pc, max_iter)
-        pos_diff = self.calculate_odom(T, R)
-        robot_pos = self.pos_keyframe + pos_diff
 
-        if np.linalg.norm(pos_diff[:2]) > 0.2 or pos_diff[2] > 0.1:
-            self.pos_keyframe = robot_pos
+        # Calculate local pos difference
+        translation_diff = T.flatten()
+        rotation_diff = np.arctan2(R[1,0], R[0,0])
+
+        # Calculate global pos difference
+        global_R = np.matmul(R, self.R_keyframe)
+        global_T = self.T_keyframe + np.matmul(global_R, T)
+        robot_xy = global_T.flatten()
+        robot_theta = np.arctan2(global_R[1,0], global_R[0,0])
+
+        if np.linalg.norm(translation_diff) > 0.2 or rotation_diff > 0.1:
             self.pc_keyframe = pc
+            self.R_keyframe = global_R
+            self.T_keyframe = global_T
 
-        return robot_pos # returns x, y, theta
+        return [robot_xy[0], robot_xy[1], robot_theta] # returns x, y, theta
 
 
 class ScanMatcherROS:
