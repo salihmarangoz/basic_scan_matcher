@@ -101,8 +101,8 @@ class ScanMatcher:
         T, R = self.match(self.pc_keyframe, pc, max_iter)
 
         # Calculate local pos difference
-        translation_diff = T.flatten()
-        rotation_diff = np.arctan2(R[1,0], R[0,0])
+        translation_diff = np.linalg.norm(T.flatten())
+        rotation_diff = np.abs(np.arctan2(R[1,0], R[0,0]))
 
         # Calculate global pos difference
         global_R = np.matmul(R, self.R_keyframe)
@@ -110,7 +110,7 @@ class ScanMatcher:
         robot_xy = global_T.flatten()
         robot_theta = np.arctan2(global_R[1,0], global_R[0,0])
 
-        if np.linalg.norm(translation_diff) > 0.1 or rotation_diff > 0.2:
+        if translation_diff > 0.1 or rotation_diff > 0.2:
             self.pc_keyframe = pc
             self.R_keyframe = global_R
             self.T_keyframe = global_T
