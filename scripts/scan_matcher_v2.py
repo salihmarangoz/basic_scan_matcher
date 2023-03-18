@@ -7,7 +7,7 @@ from sensor_msgs.msg import LaserScan
 import robust_loss_pytorch.general
 
 # Parameters
-MAX_DISTANCE = 5.0
+MAX_DISTANCE = 10.0
 MAX_ITER = 20
 THRESHOLD_TRANSLATION = 0.02
 THRESHOLD_ROTATION = np.pi/45
