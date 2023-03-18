@@ -7,7 +7,7 @@
 
     <node name="rosbag" pkg="rosbag" type="play" args="$(find basic_scan_matcher)/launch/example.bag --clock -r 5.0"/>
 
-    <node name="basic_scan_matcher" pkg="basic_scan_matcher" type="scan_matcher.py" output="screen">
+    <node name="basic_scan_matcher" pkg="basic_scan_matcher" type="scan_matcher_v1.py" output="screen">
 
     </node>
 
