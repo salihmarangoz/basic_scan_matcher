@@ -14,14 +14,17 @@ The original map for the recorded bag: (Bag is generated using https://github.co
 
 - ROS (inputs `/scan`)
 - Publishes the matching error between `odom` to `laser` transforms.
-- Efficient point-to-point matching with KD Tree.
+- (v1) Efficient point-to-point matching with KD Tree.
+- (v2) Scan matching without correspondences. (a bit similar to NDT, but each point has its own normal distribution)
 - Old scan is only updated if the robot moves or rotates above a certain threshold.
 - Demo bag is available.
 
 ## Running
 
 ```bash
-# Demo with bag:
-$ roslaunch basic_scan_matcher start.launch
+# Point-to-point matching:
+$ roslaunch basic_scan_matcher start_v1.launch
+# Correspondence-free matching:
+$ roslaunch basic_scan_matcher start_v2.launch
 ```
 
