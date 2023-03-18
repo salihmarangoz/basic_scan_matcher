@@ -2,7 +2,7 @@
 
 Implementation of a scan matcher using only laser data and without any help from odometry sources. The method is implemented super-simple so it doesn't work well, and it may not work well in your cases. Use only for educational purposes. You can also check [the notebook](https://salihmarangoz.github.io/blog/2D-Scan-Matcher/) on my website for this experiment. (v2 notebook will be added later)
 
-V1) Point-to-point matching. Youtube Link: https://youtu.be/t-31ekrpjxk (jumps at 0:20 are solved with f026daef3b72d3a26e02d58c7a77bc7a88dfc232)
+V1) Point-to-point matching. Youtube Link: https://youtu.be/t-31ekrpjxk (jumps at 0:20 are solved with this [commit](https://github.com/salihmarangoz/basic_scan_matcher/commit/f026daef3b72d3a26e02d58c7a77bc7a88dfc232))
 
 [![](https://img.youtube.com/vi/t-31ekrpjxk/0.jpg)](https://youtu.be/t-31ekrpjxk)
 
