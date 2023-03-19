@@ -1,6 +1,6 @@
 # Simple Scan Matcher (ROS+Python)
 
-Implementation of a scan matcher using only laser data and without any help from odometry sources. The method is implemented super-simple so it doesn't work well, and it may not work well in your cases. Use only for educational purposes. You can also check [the notebook](https://salihmarangoz.github.io/blog/2D-Scan-Matcher/) on my website for this experiment. (v2 notebook will be added later)
+Implementation of a scan matcher using only laser data and without any help from odometry sources. The method is implemented super-simple so it doesn't work well, and it may not work well in your cases. Use only for educational purposes. You can also check my [notebook v1](https://salihmarangoz.github.io/blog/2D-Scan-Matcher/) and [notebook v2](https://salihmarangoz.github.io/blog/2D-Scan-Matcher-with-PyTorch/) for more information.
 
 V1) Point-to-point matching. Youtube Link: https://youtu.be/t-31ekrpjxk (jumps at 0:20 are solved with this [commit](https://github.com/salihmarangoz/basic_scan_matcher/commit/f026daef3b72d3a26e02d58c7a77bc7a88dfc232))
 
